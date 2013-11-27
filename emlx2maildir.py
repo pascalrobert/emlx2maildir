@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+# encoding: utf-8
+# -*- coding: utf-8 -*-
 
 # Copyright (C) 2009-2013 Mike Laiosa <mike@laiosa.org> and others.
 #
@@ -19,6 +21,7 @@
 import optparse
 import xml.sax, xml.sax.handler
 import re, os, os.path, socket, time
+import unicodedata
 
 class PlistHandler(xml.sax.handler.ContentHandler):
 	def __init__(self):
@@ -146,7 +149,7 @@ def emlx_message_dirs(emlx_dir):
 		elif search:
 			subfolder = os.path.join(emlx_dir, x)
 			if	os.path.isdir(subfolder):
-				print "Recursing into %r" % (subfolder)
+				#print "Recursing into %r" % (subfolder)
 				for tmp in emlx_message_dirs(subfolder):
 					yield tmp
 
@@ -210,6 +213,26 @@ def main():
 	while len(tasks):
 		emlx_folder, maildir = tasks[-1]
 		
+		maildir = unicodedata.normalize('NFC', unicode(maildir))
+		if u'é' in maildir:
+			maildir = maildir.replace(u'é','&AOk-')
+		if u'è' in maildir:
+			maildir = maildir.replace(u'è','&AOg-')
+		if u'É' in maildir:
+			maildir = maildir.replace(u'É','&AMk-')
+		if u'à' in maildir:
+			maildir = maildir.replace(u'à','&AOA-')
+		if u'À' in maildir:
+			maildir = maildir.replace(u'À','&AMA-')
+		if u'ç' in maildir:
+			maildir = maildir.replace(u'ç','&AOc-')
+		if u'ê' in maildir:
+			maildir = maildir.replace(u'ê','&AOo-')
+		if u'ô' in maildir:
+			maildir = maildir.replace(u'ô','&APQ-')
+		if u'È' in maildir:
+			maildir = maildir.replace(u'È','&AMg-')
+
 		P("Converting %r -> %r" % (emlx_folder, maildir))
 		tasks = tasks[:-1]
 		dry("Making maildir %r" % maildir, maildirmake, maildir)
@@ -217,7 +240,8 @@ def main():
 			dry("Converting message %r" % msg, convert_one, msg, maildir)
 		if opts.recursive:
 			for f in emlx_subfolders(emlx_folder):
-				tasks.append((f, maildir + "." + os.path.basename(f)))
+				basename = unicode(os.path.basename(f),'utf-8')
+				tasks.append((f, maildir + "." + basename))
 
 if __name__ == "__main__":
 	main()
