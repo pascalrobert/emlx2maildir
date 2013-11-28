@@ -175,14 +175,21 @@ def emlx_subfolders(emlx_dir):
 					yield tmp
 				yield subfolder
 
-def maildirmake(dir):
+def maildirmake(dir, root_folder):
 	for s in ["cur", "new", "tmp"]:
-		if not os.path.exists(os.path.join(dir, s)):
-			os.makedirs(os.path.join(dir, s))
+		if not os.path.exists(os.path.join(root_folder, dir, s)):
+			os.makedirs(os.path.join(root_folder, dir, s))
 
 def remove_slash(s):
 	if len(s) and s[-1] == '/':
 		return s[:-1]
+	else:
+		return s
+		
+def remove_forward_slash(s):
+	print s
+	if len(s) and s[0] == '/':
+		return s[1:]
 	else:
 		return s
 
@@ -209,6 +216,7 @@ def main():
 	if len(args) != 2:
 		parser.error("Not enough arguments")
 
+	root_folder = remove_slash(args[0])
 	tasks = [(remove_slash(args[0]), args[1] + '/')]
 	while len(tasks):
 		emlx_folder, maildir = tasks[-1]
@@ -235,12 +243,16 @@ def main():
 
 		P("Converting %r -> %r" % (emlx_folder, maildir))
 		tasks = tasks[:-1]
-		dry("Making maildir %r" % maildir, maildirmake, maildir)
+		print maildir
+		dry("Making maildir %r" % maildir, maildirmake, maildir, root_folder)
 		for msg in emlx_messages(emlx_folder):
 			dry("Converting message %r" % msg, convert_one, msg, maildir)
 		if opts.recursive:
 			for f in emlx_subfolders(emlx_folder):
-				basename = unicode(os.path.basename(f),'utf-8')
+				basename = f.replace(root_folder,'')
+				basename = remove_forward_slash(basename)
+				basename = basename.replace('.mbox','')
+				basename = basename.replace(os.path.sep,'.')
 				tasks.append((f, maildir + "." + basename))
 
 if __name__ == "__main__":
