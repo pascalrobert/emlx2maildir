@@ -92,7 +92,7 @@ FL_HIGHLIGHT_IN_TOC = (1<<30)
 flag_mapping = [
 	(FL_DRAFT, "D"),
 	(FL_FLAGGED, "F"),
-	((FL_FORWARDED | FL_REDIRECTED), "P"),
+	((FL_FORWARDED | FL_REDIRECTED), "c"),
 	(FL_ANSWERED, "R"),
 	(FL_READ, "S"),
 	(FL_DELETED, "T"),
@@ -243,7 +243,6 @@ def main():
 
 		P("Converting %r -> %r" % (emlx_folder, maildir))
 		tasks = tasks[:-1]
-		print maildir
 		dry("Making maildir %r" % maildir, maildirmake, maildir, root_folder)
 		for msg in emlx_messages(emlx_folder):
 			dry("Converting message %r" % msg, convert_one, msg, maildir)
