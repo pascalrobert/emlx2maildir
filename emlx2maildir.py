@@ -24,54 +24,58 @@ import re, os, os.path, socket, time
 import unicodedata
 
 class PlistHandler(xml.sax.handler.ContentHandler):
-	def __init__(self):
-		xml.sax.handler.ContentHandler.__init__(self)
-		self.key = None
-		def set_top(k,v):
-			self.top = v
-		self.stack = [set_top]
-	def generate(self, value):
-		self.stack[-1](self.key, value)
-	def startElement(self, name, attrs):
-		self.elem = name
-		self.value = ""
-		if name == "array":
-			ar = []
-			self.stack.append(ar)
-			self.stack.append(lambda k,v: ar.append(v))
-		elif name == "dict":
-			d = {}
-			def add(k, v):
-				d[k] = v
-			self.stack.append(d)
-			self.stack.append(add)
-	def endElement(self, name):
-		if name == "string":
-			self.generate(self.value)
-		elif name == "integer":
-			self.generate(long(self.value))
-		elif name == "real":
-			self.generate(float(self.value))
-		elif name == "key":
-			self.key = self.value
-		elif name in ("dict", "array"):
-			x = self.stack[-2]
-			self.stack = self.stack[:-2]
-			self.generate(x)
-		elif name in ("plist", "data"):
-			pass
-		else:
-			print "Unknown tag: %s" % name
-	def characters(self, chars):
-		self.value += chars
+  def __init__(self):
+    xml.sax.handler.ContentHandler.__init__(self)
+    self.key = None
+    def set_top(k,v):
+      self.top = v
+    self.stack = [set_top]
+  def generate(self, value):
+    self.stack[-1](self.key, value)
+  def startElement(self, name, attrs):
+    self.elem = name
+    self.value = ""
+    if name == "array":
+      ar = []
+      self.stack.append(ar)
+      self.stack.append(lambda k,v: ar.append(v))
+    elif name == "dict":
+      d = {}
+      def add(k, v):
+        d[k] = v
+      self.stack.append(d)
+      self.stack.append(add)
+  def endElement(self, name):
+    if name == "string":
+      self.generate(self.value)
+    elif name == "integer":
+      self.generate(long(self.value))
+    elif name == "real":
+      self.generate(float(self.value))
+    elif name == "key":
+      self.key = self.value
+    elif name in ("dict", "array"):
+      x = self.stack[-2]
+      self.stack = self.stack[:-2]
+      self.generate(x)
+    elif name in ("plist", "data"):
+      pass
+    else:
+      print "Unknown tag: %s" % name
+  def characters(self, chars):
+    self.value += chars
 
 def parse_plist(plist_xml):
-	# Remove any DOCTYPE declarations, to stop the XML parser from trying to
-	# download the DTD.
-	plist_xml = re.sub(r'<!DOCTYPE.*?"\s*>', "", plist_xml)
-	p = PlistHandler()
-	xml.sax.parseString(plist_xml, p)
-	return p.top
+  # Remove any DOCTYPE declarations, to stop the XML parser from trying to
+  # download the DTD.
+  plist_xml = re.sub(r'<!DOCTYPE.*?"\s*>', "", plist_xml)
+  p = PlistHandler()
+  try:
+    xml.sax.parseString(plist_xml, p)
+  except xml.sax._exceptions.SAXParseException as exception:
+    print exception
+    print plist_xml
+  return p.top
 
 FL_READ = (1<<0)
 FL_DELETED = (1<<1)
@@ -90,12 +94,12 @@ FL_JUNK_LEVEL_RECORDED = (1<<29)
 FL_HIGHLIGHT_IN_TOC = (1<<30)
 
 flag_mapping = [
-	(FL_DRAFT, "D"),
-	(FL_FLAGGED, "F"),
-	((FL_FORWARDED | FL_REDIRECTED), "c"),
-	(FL_ANSWERED, "R"),
-	(FL_READ, "S"),
-	(FL_DELETED, "T"),
+  (FL_DRAFT, "D"),
+  (FL_FLAGGED, "F"),
+  ((FL_FORWARDED | FL_REDIRECTED), "c"),
+  (FL_ANSWERED, "R"),
+  (FL_READ, "S"),
+  (FL_DELETED, "T"),
 ]
 
 hostname = socket.gethostname()
@@ -103,156 +107,173 @@ pid = os.getpid()
 gSeq = 0
 
 def md_filename(date, flags):
-	global gSeq
-	gSeq += 1
-	return "%d.M%dP%dQ%d.%s:2,%s" % (date, time.time(), pid, gSeq, hostname, flags)
+  global gSeq
+  gSeq += 1
+  return "%d.M%dP%dQ%d.%s:2,%s" % (date, time.time(), pid, gSeq, hostname, flags)
 
 def convert_one(emlx_file, maildir):
-	contents = open(emlx_file, "rb").read()
-	boundry = contents.find("\x0a")
-	length = long(contents[:boundry])
-	body = contents[boundry+1:boundry+1+length]
-	metadata = parse_plist(contents[boundry+1+length:])
+  contents = open(emlx_file, "rb").read()
+  boundry = contents.find("\x0a")
+  length = long(contents[:boundry])
+  body = contents[boundry+1:boundry+1+length]
+  metadata = parse_plist(contents[boundry+1+length:])
 
-	flags = ""
-	if "flags" in metadata:
-		for fl, let in flag_mapping:
-			if metadata['flags'] & fl:
-				flags += let
+  flags = ""
+  if "flags" in metadata:
+    for fl, let in flag_mapping:
+      if metadata['flags'] & fl:
+        flags += let
 
-	date = long(metadata.get('date-sent', time.time()))
-	filename = md_filename(date, flags)
-	tmp_name = os.path.join(maildir, "tmp", filename)
-	cur_name = os.path.join(maildir, "cur", filename)
-	open(tmp_name, "wb").write(body)
-	os.rename(tmp_name, cur_name)
-	os.utime(cur_name, (date,date))
+  date = long(metadata.get('date-sent', time.time()))
+  filename = md_filename(date, flags)
+  tmp_name = os.path.join(maildir, "tmp", filename)
+  cur_name = os.path.join(maildir, "cur", filename)
+  open(tmp_name, "wb").write(body)
+  os.rename(tmp_name, cur_name)
+  os.utime(cur_name, (date,date))
 
 def emlx_message_dir(emlx_dir):
-	msg_dir = os.path.join(emlx_dir + ".mbox", "Messages")
-	if not os.path.isdir(msg_dir):
-		msg_dir = os.path.join(emlx_dir + ".imapmbox", "Messages")
-	if not os.path.isdir(msg_dir):
-		return None
-	return msg_dir
+  msg_dir = os.path.join(emlx_dir + ".mbox", "Messages")
+  if not os.path.isdir(msg_dir):
+    msg_dir = os.path.join(emlx_dir + ".imapmbox", "Messages")
+  if not os.path.isdir(msg_dir):
+    return None
+  return msg_dir
 
 def emlx_message_dirs(emlx_dir):
-	for x in os.listdir(emlx_dir):
-		suffixes = [".sbd", ".mbox", ".imapmbox"]
-		search = True
-		for s in suffixes:
-			if x.endswith(s):
-				search = False
-		if x == "Messages":
-			msg_dir = os.path.join(emlx_dir,"Messages")
-			yield msg_dir
-		elif search:
-			subfolder = os.path.join(emlx_dir, x)
-			if	os.path.isdir(subfolder):
-				#print "Recursing into %r" % (subfolder)
-				for tmp in emlx_message_dirs(subfolder):
-					yield tmp
+  for x in os.listdir(emlx_dir):
+    suffixes = [".sbd", ".mbox", ".imapmbox"]
+    search = True
+    for s in suffixes:
+      if x.endswith(s):
+        search = False
+    if x == "Messages":
+      msg_dir = os.path.join(emlx_dir,"Messages")
+      yield msg_dir
+    elif search:
+      subfolder = os.path.join(emlx_dir, x)
+      if  os.path.isdir(subfolder):
+        #print "Recursing into %r" % (subfolder)
+        for tmp in emlx_message_dirs(subfolder):
+          yield tmp
 
 def emlx_messages(emlx_dir):
-	if os.path.isdir(emlx_dir + ".mbox"):
-		for msg_dir in emlx_message_dirs(emlx_dir + ".mbox"):
-			for x in os.listdir(msg_dir):
-				if x.endswith(".emlx") and x[0] != '.':
-					yield os.path.join(msg_dir, x)
+  if os.path.isdir(emlx_dir + ".mbox"):
+    for msg_dir in emlx_message_dirs(emlx_dir + ".mbox"):
+      for x in os.listdir(msg_dir):
+        if x.endswith(".emlx") and x[0] != '.':
+          yield os.path.join(msg_dir, x)
 
 def emlx_subfolders(emlx_dir):
-	if not os.path.isdir(emlx_dir):
-		if os.path.isdir(emlx_dir + ".sbd"):
-			emlx_dir = ".sbd"
-		else:
-			return
-	for x in os.listdir(emlx_dir):
-		suffixes = [".sbd", ".mbox", ".imapmbox"]
-		for s in suffixes:
-			if x.endswith(s):
-				subfolder = os.path.join(emlx_dir, x[:-len(s)])
-				for tmp in emlx_subfolders(os.path.join(emlx_dir, x)):
-					yield tmp
-				yield subfolder
+  if not os.path.isdir(emlx_dir):
+    if os.path.isdir(emlx_dir + ".sbd"):
+      emlx_dir = ".sbd"
+    else:
+      return
+  for x in os.listdir(emlx_dir):
+    suffixes = [".sbd", ".mbox", ".imapmbox"]
+    for s in suffixes:
+      if x.endswith(s):
+        subfolder = os.path.join(emlx_dir, x[:-len(s)])
+        for tmp in emlx_subfolders(os.path.join(emlx_dir, x)):
+          yield tmp
+        yield subfolder
 
 def maildirmake(dir, root_folder):
-	for s in ["cur", "new", "tmp"]:
-		if not os.path.exists(os.path.join(root_folder, dir, s)):
-			os.makedirs(os.path.join(root_folder, dir, s))
+  for s in ["cur", "new", "tmp"]:
+    if not os.path.exists(os.path.join(root_folder, dir, s)):
+      os.makedirs(os.path.join(root_folder, dir, s))
 
 def remove_slash(s):
-	if len(s) and s[-1] == '/':
-		return s[:-1]
-	else:
-		return s
-		
+  if len(s) and s[-1] == '/':
+    return s[:-1]
+  else:
+    return s
+    
 def remove_forward_slash(s):
-	print s
-	if len(s) and s[0] == '/':
-		return s[1:]
-	else:
-		return s
+  print s
+  if len(s) and s[0] == '/':
+    return s[1:]
+  else:
+    return s
+
+def cleanup_name(s):
+  if u'é' in s:
+    s = s.replace(u'é','&AOk-')
+  if u'è' in s:
+    s = s.replace(u'è','&AOg-')
+  if u'É' in s:
+    s = s.replace(u'É','&AMk-')
+  if u'à' in s:
+    s = s.replace(u'à','&AOA-')
+  if u'À' in s:
+    s = s.replace(u'À','&AMA-')
+  if u'ç' in s:
+    s = s.replace(u'ç','&AOc-')
+  if u'ê' in s:
+    s = s.replace(u'ê','&AOo-')
+  if u'ô' in s:
+    s = s.replace(u'ô','&APQ-')
+  if u'È' in s:
+    s = s.replace(u'È','&AMg-')
+  if u'â' in s:
+    s = s.replace(u'â','&AOI-')
+  if u'Â' in s:
+    s = s.replace(u'Â','&AMI-')
+  if u'•' in s:
+    s = s.replace(u'•','&ICI-')
+  if u'ë' in s:
+    s = s.replace(u'ë','e')
+  if u'Ë' in s:
+    s = s.replace(u'Ë','E')
+  return s
 
 def main():
-	parser = optparse.OptionParser(usage="Usage: %prog [options] emlx_folder maildir")
-	parser.add_option("-r", "--recursive", action="store_true", help="Recurse into subfolders")
-	parser.add_option("-q", "--quiet", action="store_true", help="Only print error output")
-	parser.add_option("--dry-run", action="store_true", help="Don't do anything")
-	parser.add_option("--verbose", action="store_true", help="Displays lots of stuff")
-	opts, args = parser.parse_args()
+  parser = optparse.OptionParser(usage="Usage: %prog [options] emlx_folder maildir")
+  parser.add_option("-r", "--recursive", action="store_true", help="Recurse into subfolders")
+  parser.add_option("-q", "--quiet", action="store_true", help="Only print error output")
+  parser.add_option("--dry-run", action="store_true", help="Don't do anything")
+  parser.add_option("--verbose", action="store_true", help="Displays lots of stuff")
+  opts, args = parser.parse_args()
 
-	def P(s):
-		if not opts.quiet:
-			print s
-	def V(s):
-		if opts.dry_run or opts.verbose:
-			P(s)
+  def P(s):
+    if not opts.quiet:
+      print s
+  def V(s):
+    if opts.dry_run or opts.verbose:
+      P(s)
 
-	def dry(s, act, *args, **kwargs):
-		V(s)
-		if not opts.dry_run:
-			return act(*args, **kwargs)
+  def dry(s, act, *args, **kwargs):
+    V(s)
+    if not opts.dry_run:
+      return act(*args, **kwargs)
 
-	if len(args) != 2:
-		parser.error("Not enough arguments")
+  if len(args) != 2:
+    parser.error("Not enough arguments")
 
-	root_folder = remove_slash(args[0])
-	tasks = [(remove_slash(args[0]), args[1] + '/')]
-	while len(tasks):
-		emlx_folder, maildir = tasks[-1]
-		
-		maildir = unicodedata.normalize('NFC', unicode(maildir))
-		if u'é' in maildir:
-			maildir = maildir.replace(u'é','&AOk-')
-		if u'è' in maildir:
-			maildir = maildir.replace(u'è','&AOg-')
-		if u'É' in maildir:
-			maildir = maildir.replace(u'É','&AMk-')
-		if u'à' in maildir:
-			maildir = maildir.replace(u'à','&AOA-')
-		if u'À' in maildir:
-			maildir = maildir.replace(u'À','&AMA-')
-		if u'ç' in maildir:
-			maildir = maildir.replace(u'ç','&AOc-')
-		if u'ê' in maildir:
-			maildir = maildir.replace(u'ê','&AOo-')
-		if u'ô' in maildir:
-			maildir = maildir.replace(u'ô','&APQ-')
-		if u'È' in maildir:
-			maildir = maildir.replace(u'È','&AMg-')
+  root_folder = remove_slash(args[0])
+  tasks = [(remove_slash(args[0]), args[1] + '/')]
+  while len(tasks):
+    emlx_folder, maildir = tasks[-1]
+    maildir = unicodedata.normalize('NFC', unicode(maildir))
+    maildir = cleanup_name(maildir)
 
-		P("Converting %r -> %r" % (emlx_folder, maildir))
-		tasks = tasks[:-1]
-		dry("Making maildir %r" % maildir, maildirmake, maildir, root_folder)
-		for msg in emlx_messages(emlx_folder):
-			dry("Converting message %r" % msg, convert_one, msg, maildir)
-		if opts.recursive:
-			for f in emlx_subfolders(emlx_folder):
-				basename = f.replace(root_folder,'')
-				basename = remove_forward_slash(basename)
-				basename = basename.replace('.mbox','')
-				basename = basename.replace(os.path.sep,'.')
-				tasks.append((f, maildir + "." + basename))
+    P("Converting %r -> %r" % (emlx_folder, maildir))
+    tasks = tasks[:-1]
+    dry("Making maildir %r" % maildir, maildirmake, maildir, root_folder)
+    for msg in emlx_messages(emlx_folder):
+      dry("Converting message %r" % msg, convert_one, msg, maildir)
+    if opts.recursive:
+      for f in emlx_subfolders(emlx_folder):
+        basename = f.replace(root_folder,'')
+        basename = remove_forward_slash(basename)
+        basename = basename.replace('.mbox','')
+        basename = basename.replace('.','_')
+        basename = basename.replace('&','&-')
+        basename = basename.replace(os.path.sep,'.')
+        basename = unicodedata.normalize('NFC', unicode(basename, 'utf-8'))
+        basename = cleanup_name(basename)
+        tasks.append((f, maildir + "." + basename))
 
 if __name__ == "__main__":
-	main()
+  main()
