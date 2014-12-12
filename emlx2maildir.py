@@ -124,6 +124,9 @@ def convert_one(emlx_file, maildir):
       if metadata['flags'] & fl:
         flags += let
 
+  something = metadata.get('date-sent')
+  if something < 1 or something == None:
+    print "oups"
   date = long(metadata.get('date-sent', time.time()))
   filename = md_filename(date, flags)
   tmp_name = os.path.join(maildir, "tmp", filename)
@@ -220,6 +223,8 @@ def cleanup_name(s):
     s = s.replace(u'â','&AOI-')
   if u'Â' in s:
     s = s.replace(u'Â','&AMI-')
+  if u'••' in s:
+    s = s.replace(u'••','&ICIgIg-')
   if u'•' in s:
     s = s.replace(u'•','&ICI-')
   if u'ë' in s:
